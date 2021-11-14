@@ -70,14 +70,12 @@ def fill_model(
 
 def generate_model_perms(
         model: Model,
-        var_names: tuple[str, ...],
-) -> tuple[tuple[str], Model]:
+) -> list[Model]:
 
-    var_perms = permutations(var_names)
     perms_by_columns = permutations(rotate(model))
 
-    for var_set, model in zip(var_perms, perms_by_columns):
-        yield var_set, rotate(model)
+    for model in perms_by_columns:
+        yield rotate(model)
 
 
 def check_model(
@@ -92,26 +90,35 @@ def check_model(
     return model_correct and (not only_unique_rows or rows_unique)
 
 
+def extract_var_names(
+        matrix: Model,
+        correct_matrix: Model,
+        var_names: tuple[str, ...]
+) -> tuple[str, ...]:
+
+    matrix_columns = rotate(matrix)
+    correct_matrix_columns = rotate(correct_matrix)
+
+    return tuple(var_names[correct_matrix_columns.index(column)] for column in matrix_columns)
+
+
 def solve(
-        variables: tuple[str, ...],
         function: Callable[[int, ...], bool],
         model: ModelTemplate,
         expected_values: list[int],
 ):
     result = set()
-
+    variables = function.__code__.co_varnames
     none_count = count_none(model)
     none_fillers = product((0, 1), repeat=none_count)
 
     for filler in none_fillers:
         filled_model = fill_model(model, filler)
-        perms = generate_model_perms(filled_model, variables)
+        perms = generate_model_perms(filled_model)
 
-        for var_names, model_variant in perms:
-            print(*model_variant, sep='\n', end='\n\n')
+        for model_variant in perms:
             if check_model(model_variant, expected_values, function):
-                print(*model_variant, sep='\n', end='\n\n')
-                result.add(var_names)
+                result.add(extract_var_names(filled_model, model_variant, variables))
     return result
 
 
@@ -119,12 +126,11 @@ if __name__ == '__main__':
     _ = None
 
     solution = solve(
-        variables=('x', 'y', 'z'),
-        function=lambda x, y, z: (not x and y and z) or (not x and not y and z) or (not x and not y and not z),
+        function=lambda x, y, z: (not x and y and z) or (not x and not z),
         model=[
             [0, 0, 0],
             [1, 0, 0],
-            [1, 0, 1],
+            [1, 1, 0],
         ],
         expected_values=[True] * 3
     )
